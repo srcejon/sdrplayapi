@@ -6,7 +6,7 @@ MAJVERS="3"
 echo "Installing SDRplay RSP API library ${VERS}..."
 read -p "Press RETURN to view the license agreement" ret
 
-more sdrplay_license.txt
+cat sdrplay_license.txt
 
 while true; do
     echo "Press y and RETURN to accept the license agreement and continue with"
