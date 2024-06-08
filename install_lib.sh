@@ -1,6 +1,6 @@
 #!/bin/bash
 PATH=/bin:$PATH
-VERS="3.14"
+VERS="3.15"
 MAJVERS="3"
 YUMTOOL=$( command -v yum )
 APTTOOL=$( command -v apt )
@@ -18,7 +18,7 @@ echo "the system files."
 echo " "
 
 read -p "Press RETURN to view the license agreement" ret
-cat sdrplay_license.txt
+more -d sdrplay_license.txt
 while true; do
     echo "Press y and RETURN to accept the license agreement and continue with"
     read -p "the installation, or press n and RETURN to exit the installer [y/n] " yn
@@ -39,7 +39,7 @@ ARCH=$(uname -m|sed -e 's/x86_64/64/' -e 's/aarch64/64/' -e 's/arm64/64/' -e 's/
 INIT=$(file -L /sbin/init|sed -e 's/^.* \(32\|64\)-bit.*$/\1/')
 COMPILER=$(getconf LONG_BIT)
 ARCHM=$(uname -m)
-INSTALLARCH=$(uname -m)
+INSTALLARCH=$(dpkg --print-architecture)
 
 if [ "${ARCHM}" = "aarch64" ] || [ "${ARCHM}" = "arm64" ]; then
     ARCHM="arm64"
@@ -52,23 +52,16 @@ echo "System is also setup to produce $COMPILER bit files"
 echo "Architecture reports machine as being $ARCHM compliant"
 echo " "
 
-if [ "${ARCH}" != "64" ] || [ "${INIT}" != "64" ] || [ "${COMPILER}" != "64" ]; then
-    echo "This installer only supports 64 bit architectures."
-    echo "One of the above indicates that something is not set for"
-    echo "64 bit operation. Please either fix the relevant OS issue or"
-    echo "check https://www.sdrplay.com/api to see if there's another"
-    echo "installer that supports your system."
-    exit 1
-fi
-
-if [ "${INSTALLARCH}" != "x86_64" ]; then
-    if [ "${INSTALLARCH}" != "aarch64" ]; then
-#             0--------1---------2---------3---------4---------5---------6---------7---------8
-        echo " "
-        echo "This installer does not support the architecture you are installing on."
-        echo "Please check https://www.sdrplay.com/api to see if there's an installer"
-        echo "for your architecture."
-        exit 1
+if [ "${INSTALLARCH}" != "amd64" ]; then
+    if [ "${INSTALLARCH}" != "arm64" ]; then
+        if [ "${INSTALLARCH}" != "armhf" ]; then
+#                 0--------1---------2---------3---------4---------5---------6---------7---------8
+            echo " "
+            echo "This installer does not support the architecture you are installing on."
+            echo "Please check https://www.sdrplay.com/api to see if there's an installer"
+            echo "for your architecture."
+            exit 1
+        fi
     fi
 fi
 
@@ -161,6 +154,7 @@ SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device",ATTRS{idVendor}=="1df7",ATTRS{idProd
 SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device",ATTRS{idVendor}=="1df7",ATTRS{idProduct}=="3020",MODE:="0666"
 SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device",ATTRS{idVendor}=="1df7",ATTRS{idProduct}=="3030",MODE:="0666"
 SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device",ATTRS{idVendor}=="1df7",ATTRS{idProduct}=="3050",MODE:="0666"
+SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device",ATTRS{idVendor}=="1df7",ATTRS{idProduct}=="3060",MODE:="0666"
 EOF
     sudo chmod 644 /etc/udev/rules.d/66-sdrplay.rules
     sudo rm -f /etc/udev/rules.d/66-mirics.rules
@@ -190,6 +184,9 @@ usb:v1DF7p3030*
 
 usb:v1DF7p3050*
  ID_MODEL_FROM_DATABASE=RSP1B
+
+usb:v1DF7p3060*
+ ID_MODEL_FROM_DATABASE=RSPdxR2
 EOF
         sudo chmod 644 /etc/udev/hwdb.d/20-sdrplay.hwdb
         sudo systemd-hwdb update
@@ -218,15 +215,22 @@ if [ -f "/var/lib/usbutils/usb.ids" ]; then
     if grep -q SDRplay /var/lib/usbutils/usb.ids; then
         echo "SDRplay devices found in the USB database"
         if grep -q RSP1B /var/lib/usbutils/usb.ids; then
-            echo "All SDRplay devices already in the local USB database, continuing..."
+            echo "RSP1B already in the local USB database, continuing..."
         else
             sudo cp /var/lib/usbutils/usb.ids /var/lib/usbutils/usb.ids.bak
             sudo bash -c "awk '/^1e/ && !x {print \"	3050  RSP1B\"; x=1} 1' /var/lib/usbutils/usb.ids.bak > /var/lib/usbutils/usb.ids"
             echo "Added RSP1B to USB name database"
         fi
+        if grep -q RSPdxR2 /var/lib/usbutils/usb.ids; then
+            echo "RSPdxR2 already in the local USB database, continuing..."
+        else
+            sudo cp /var/lib/usbutils/usb.ids /var/lib/usbutils/usb.ids.bak
+            sudo bash -c "awk '/^1e/ && !x {print \"	3060  RSPdxR2\"; x=1} 1' /var/lib/usbutils/usb.ids.bak > /var/lib/usbutils/usb.ids"
+            echo "Added RSPdxR2 to USB name database"
+        fi
     else
         sudo cp /var/lib/usbutils/usb.ids /var/lib/usbutils/usb.ids.bak
-        sudo bash -c "awk '/^1e/ && !x {print \"1df7  SDRplay\n	2500  RSP1\n	3000  RSP1A\n	3010  RSP2/RSP2pro\n	3020  RSPduo\n	3030  RSPdx\n	3050  RSP1B\"; x=1} 1' /var/lib/usbutils/usb.ids.bak > /var/lib/usbutils/usb.ids"
+        sudo bash -c "awk '/^1e/ && !x {print \"1df7  SDRplay\n	2500  RSP1\n	3000  RSP1A\n	3010  RSP2/RSP2pro\n	3020  RSPduo\n	3030  RSPdx\n	3050  RSP1B\n	3060  RSPdxR2\"; x=1} 1' /var/lib/usbutils/usb.ids.bak > /var/lib/usbutils/usb.ids"
         echo "SDRplay devices added to the local USB name database"
     fi
 else
